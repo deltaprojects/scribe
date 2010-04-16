@@ -1,0 +1,15 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+configure)
+    ldconfig
+    if ! getent passwd scribe >/dev/null; then
+      adduser --disabled-password  --quiet --system \
+        --home /var/run/scribe --no-create-home \
+        --gecos "Scribe daemon" --group scribe
+    fi
+        ;;
+esac
+
+#DEBHELPER#

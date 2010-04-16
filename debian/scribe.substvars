@@ -1,0 +1,4 @@
+python:Versions=2.5, 2.6
+python:Depends=python, python-support (>= 0.90.0)
+shlibs:Depends=libboost-filesystem1.40.0 (>= 1.40.0-1), libboost-system1.40.0 (>= 1.40.0-1), libc6 (>= 2.4), libevent-1.4-2 (>= 1.4.11-stable), libgcc1 (>= 1:4.1.1), libhdfs0, libstdc++6 (>= 4.4.0), thrift
+misc:Depends=

@@ -1,0 +1,15 @@
+Source: scribe
+Section: devel
+Priority: extra
+Maintainer: root <root@p-czc9015tv2.de17a.local>
+Build-Depends: debhelper (>= 7), autotools-dev, thrift (= 20080411-r930898-6), thrift-fb303 (= 20080411-r930898-3), sun-java6-jdk (>= 6), autoconf (>= 2.64), automake
+Standards-Version: 3.8.1
+Homepage: http://github.com/facebook/scribe
+
+Package: scribe
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${python:Depends}, thrift (= 20080411-r930898-6), thrift-fb303 (= 20080411-r930898-3), sun-java6-jdk (>= 6), python (>= 2.6.4)
+Description: Aggregating server for streamed log data 
+ Scribe is a server for aggregating log data streamed in real time from a large
+ number of servers. It is designed to be scalable, extensible without client-side 
+ modification, and robust to failure of the network or any specific machine.
