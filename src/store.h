@@ -136,7 +136,7 @@ class FileStoreBase : public Store {
   // Returns the number of bytes to pad to align to the specified block size
   unsigned long bytesToPad(unsigned long next_message_length,
                            unsigned long current_file_size,
-                           unsigned long chunk_size);
+                           unsigned long chunk_size) const;
 
   // A full filename includes an absolute path and a sequence number suffix.
   std::string makeFilepathWithSuffix(int suffix, struct tm* creation_time);
@@ -156,6 +156,7 @@ class FileStoreBase : public Store {
   void setHostNameSubDir();
   std::string getHostname();
   boost::shared_ptr<FilePathPolicy> getFilePathPolicy() const { return filePathPolicy; };
+  bool shouldRotate() const;
 
   // Configuration
   std::string baseSymlinkName;
@@ -188,7 +189,6 @@ class FileStoreBase : public Store {
   
   std::string addSuffix(int suffix, const std::string & path);
   std::vector<int> findFileSuffices(const std::string & directoryPath, const std::string & fileNameToFind);
-  
    
   // disallow copy, assignment, and empty construction
   FileStoreBase(FileStoreBase& rhs);
@@ -240,6 +240,8 @@ class FileStore : public FileStoreBase {
   // disallow copy, assignment, and empty construction
   FileStore(FileStore& rhs);
   FileStore& operator=(FileStore& rhs);
+  
+  const std::string composeMessage(logentry_ptr_t logEntry, boost::shared_ptr<FileInterface> file, unsigned long currentSizeBuffered) const;
 };
 
 /*
