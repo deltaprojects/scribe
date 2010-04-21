@@ -79,6 +79,10 @@ const std::string DynamicFilePathPolicy::valueForFormatKey(const std::string & a
     return Hostname::getHostname();
   } else if (aKey == "category") {
     return category;
+  } else {
+    std::ostringstream ss;
+    ss << "'" << aKey << "' is not a valid path component";
+    throw std::runtime_error(ss.str());
   }
   
   return value.str();

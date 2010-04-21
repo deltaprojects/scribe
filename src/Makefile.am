@@ -78,7 +78,7 @@ AM_LDFLAGS = $(BOOST_LDFLAGS) $(BOOST_SYSTEM_LIB) $(BOOST_FILESYSTEM_LIB)
 # Static -- multiple libraries can be defined
 if STATIC
 lib_LIBRARIES = libscribe.a
-libscribe_a_SOURCES = gen-cpp/scribe.cpp gen-cpp/scribe_types.cpp gen-cpp/scribe_constants.cpp
+libscribe_a_SOURCES = gen-cpp/scribe.cpp gen-cpp/scribe_types.cpp gen-cpp/scribe_constants.cpp static_file_path_policy.cpp dynamic_file_path_policy.cpp file_path_policy_factory.cpp timestamped_file_path_policy.cpp hostname.cpp
 INTERNAL_LIBS = libscribe.a
 endif
 
@@ -86,7 +86,7 @@ endif
 if SHARED
 shareddir = lib
 shared_PROGRAMS = libscribe.so
-libscribe_so_SOURCES = gen-cpp/scribe.cpp gen-cpp/scribe_types.cpp
+libscribe_so_SOURCES = gen-cpp/scribe.cpp gen-cpp/scribe_types.cpp gen-cpp/scribe_constants.cpp static_file_path_policy.cpp dynamic_file_path_policy.cpp file_path_policy_factory.cpp timestamped_file_path_policy.cpp hostname.cpp
 libscribe_so_CXXFLAGS = $(SHARED_CXXFLAGS)
 libscribe_so_LDFLAGS = $(SHARED_LDFLAGS)
 INTERNAL_LIBS =  libscribe.so
@@ -94,7 +94,7 @@ endif
 
 # Binaries -- multiple progs can be defined.
 bin_PROGRAMS = scribed
-scribed_SOURCES = store.cpp store_queue.cpp conf.cpp file.cpp conn_pool.cpp scribe_server.cpp static_file_path_policy.cpp dynamic_file_path_policy.cpp file_path_policy_factory.cpp timestamped_file_path_policy.cpp hostname.cpp $(FB_SOURCES)
+scribed_SOURCES = store.cpp store_queue.cpp conf.cpp file.cpp conn_pool.cpp scribe_server.cpp $(FB_SOURCES)
 if USE_SCRIBE_HDFS
   scribed_SOURCES += HdfsFile.cpp
 endif

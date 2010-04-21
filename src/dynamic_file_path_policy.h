@@ -24,6 +24,7 @@
 
 #include "file_path_policy.h"
 #include <boost/filesystem.hpp>
+#include <stdexcept>
 
 class DynamicFilePathPolicy : public FilePathPolicy {
   const std::string filePathFormat;
