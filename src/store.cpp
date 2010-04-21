@@ -323,33 +323,32 @@ bool FileStoreBase::open() {
 
 // Decides whether conditions are sufficient for us to roll files
 void FileStoreBase::periodicCheck() {
-
   time_t rawtime = time(NULL);
   struct tm timeinfo;
   localtime_r(&rawtime, &timeinfo);
-
+  
   // Roll the file if we're over max size, or an hour or day has passed
-  bool rotate = ((currentSize > maxSize) && (maxSize != 0));
-  if (!rotate) {
+  bool shouldRotateImmediatly = shouldRotate();
+  if (!shouldRotateImmediatly) {
     switch (rollPeriod) {
       case ROLL_DAILY:
-        rotate = timeinfo.tm_mday != lastRollTime &&
-                 static_cast<uint>(timeinfo.tm_hour) >= rollHour &&
-                 static_cast<uint>(timeinfo.tm_min) >= rollMinute;
+        shouldRotateImmediatly = timeinfo.tm_mday != lastRollTime &&
+                                 static_cast<uint>(timeinfo.tm_hour) >= rollHour &&
+                                 static_cast<uint>(timeinfo.tm_min) >= rollMinute;
         break;
       case ROLL_HOURLY:
-        rotate = timeinfo.tm_hour != lastRollTime &&
-                 static_cast<uint>(timeinfo.tm_min) >= rollMinute;
+        shouldRotateImmediatly = timeinfo.tm_hour != lastRollTime &&
+                                 static_cast<uint>(timeinfo.tm_min) >= rollMinute;
         break;
       case ROLL_OTHER:
-        rotate = rawtime >= lastRollTime + rollPeriodLength;
+        shouldRotateImmediatly = rawtime >= lastRollTime + rollPeriodLength;
         break;
       case ROLL_NEVER:
         break;
     }
   }
-
-  if (rotate) {
+  
+  if (shouldRotateImmediatly) {
     rotateFile(rawtime);
   }
 }
@@ -491,7 +490,7 @@ void FileStoreBase::printStats(struct tm* timestamp) {
 // Returns the number of bytes to pad to align to the specified chunk size
 unsigned long FileStoreBase::bytesToPad(unsigned long next_message_length,
                                         unsigned long current_file_size,
-                                        unsigned long chunk_size) {
+                                        unsigned long chunk_size) const {
 
   if (chunk_size > 0) {
     unsigned long space_left_in_chunk =
@@ -504,6 +503,10 @@ unsigned long FileStoreBase::bytesToPad(unsigned long next_message_length,
   }
   // chunk_size <= 0 means don't do any chunking
   return 0;
+}
+
+bool FileStoreBase::shouldRotate() const {
+  return currentSize > maxSize && maxSize != 0;
 }
 
 FileStore::FileStore(StoreQueue* storeq,
@@ -687,7 +690,7 @@ bool FileStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
   }
 
   // write messages to current file
-  return writeMessages(messages);
+  return writeMessages(messages, writeFile);
 }
 
 // writes messages to either the specified file or the the current writeFile
@@ -696,80 +699,23 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
   // Data is written to a buffer first, then sent to disk in one call to write.
   // This costs an extra copy of the data, but dramatically improves latency with
   // network based files. (nfs, etc)
-  string        write_buffer;
+  std::string writeBuffer;
   bool          success = true;
-  unsigned long current_size_buffered = 0; // size of data in write_buffer
   unsigned long num_buffered = 0;
   unsigned long num_written = 0;
-  boost::shared_ptr<FileInterface> write_file;
-  unsigned long max_write_size = min(maxSize, maxWriteSize);
-
-  // if no file given, use current writeFile
-  if (file) {
-    write_file = file;
-  } else {
-    write_file = writeFile;
-  }
-
+  boost::shared_ptr<FileInterface> currentFile = file;
+  
   try {
-    for (logentry_vector_t::iterator iter = messages->begin();
-         iter != messages->end();
-         ++iter) {
-
-      // have to be careful with the length here. getFrame wants the length without
-      // the frame, then bytesToPad wants the length of the frame and the message.
-      unsigned long length = 0;
-      unsigned long message_length = (*iter)->message.length();
-      string frame, category_frame;
-
-      if (addNewlines) {
-        ++message_length;
-      }
-
-      length += message_length;
-
-      if (writeCategory) {
-        //add space for category+newline and category frame
-        unsigned long category_length = (*iter)->category.length() + 1;
-        length += category_length;
-
-        category_frame = write_file->getFrame(category_length);
-        length += category_frame.length();
-      }
-
-      // frame is a header that the underlying file class can add to each message
-      frame = write_file->getFrame(message_length);
-
-      length += frame.length();
-
-      // padding to align messages on chunk boundaries
-      unsigned long padding = bytesToPad(length, current_size_buffered, chunkSize);
-
-      length += padding;
-
-      if (padding) {
-        write_buffer += string(padding, 0);
-      }
-
-      if (writeCategory) {
-        write_buffer += category_frame;
-        write_buffer += (*iter)->category + "\n";
-      }
-
-      write_buffer += frame;
-      write_buffer += (*iter)->message;
-
-      if (addNewlines) {
-        write_buffer += "\n";
-      }
-
-      current_size_buffered += length;
+    for (logentry_vector_t::iterator iter = messages->begin(); iter != messages->end(); ++iter) {
+      writeBuffer += composeMessage(*iter, currentFile, writeBuffer.length());
       num_buffered++;
-
+      
       // Write buffer if processing last message or if larger than allowed
-      if ((currentSize + current_size_buffered > max_write_size && maxSize != 0) ||
-          messages->end() == iter + 1 ) {
-        if (!write_file->write(write_buffer)) {
+      bool isLastMessage = messages->end() == iter + 1;
+      bool exceedsMaxWriteSize = writeBuffer.length() > maxWriteSize && maxWriteSize > 0;
+      bool exceedsCurrentFileSize = currentSize + writeBuffer.length() > maxSize && maxSize > 0;
+      if (isLastMessage || exceedsMaxWriteSize || exceedsCurrentFileSize) {
+        if (!currentFile->write(writeBuffer)) {
           LOG_OPER("[%s] File store failed to write (%lu) messages to file",
                    categoryHandled.c_str(), messages->size());
           setStatus("File write error");
@@ -778,16 +724,15 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
         }
 
         num_written += num_buffered;
-        currentSize += current_size_buffered;
+        currentSize += writeBuffer.length();
         num_buffered = 0;
-        current_size_buffered = 0;
-        write_buffer = "";
+        writeBuffer = "";
       }
 
       // rotate file if large enough and not writing to a separate file
-      if ((currentSize > maxSize && maxSize != 0 )&& !file) {
+      if (shouldRotate()) {
         rotateFile();
-        write_file = writeFile;
+        currentFile = writeFile;
       }
     }
   } catch (std::exception const& e) {
@@ -808,6 +753,56 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
   }
 
   return success;
+}
+
+const std::string FileStore::composeMessage(logentry_ptr_t logEntry, boost::shared_ptr<FileInterface> file, unsigned long currentSizeBuffered) const {
+  std::string messageBuffer;
+  
+  // have to be careful with the length here. getFrame wants the length without
+  // the frame, then bytesToPad wants the length of the frame and the message.
+  unsigned long messageLengthNeededForFrame = logEntry->message.length();
+  unsigned long messageLengthNeededForPadding = logEntry->message.length();
+  std::string frame, category_frame;
+
+  if (addNewlines) {
+    ++messageLengthNeededForFrame;
+    ++messageLengthNeededForPadding;
+  }
+
+  if (writeCategory) {
+    //add space for category+newline and category frame
+    unsigned long categoryLength = logEntry->category.length() + 1;
+    messageLengthNeededForPadding += categoryLength;
+
+    category_frame = file->getFrame(categoryLength);
+    messageLengthNeededForPadding += category_frame.length();
+  }
+
+  // frame is a header that the underlying file class can add to each message
+  frame = file->getFrame(messageLengthNeededForFrame);
+
+  messageLengthNeededForPadding += frame.length();
+
+  // padding to align messages on chunk boundaries
+  unsigned long numberOfBytesToPad = bytesToPad(messageLengthNeededForPadding, currentSizeBuffered, chunkSize);
+
+  if (numberOfBytesToPad > 0) {
+    messageBuffer += string(numberOfBytesToPad, 0);
+  }
+
+  if (writeCategory) {
+    messageBuffer += category_frame;
+    messageBuffer += logEntry->category + "\n";
+  }
+
+  messageBuffer += frame;
+  messageBuffer += logEntry->message;
+
+  if (addNewlines) {
+    messageBuffer += "\n";
+  }
+  
+  return messageBuffer;
 }
 
 // Deletes the oldest file
