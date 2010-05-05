@@ -178,3 +178,17 @@ TEST_F(HadoopFileSystemWithFiles, should_throw_an_exception_if_trying_to_get_an_
     fs.openForReading(testPath);
   }, FileSystemError);
 }
+
+TEST_F(HadoopFileSystemWithFiles, should_always_return_true_when_checking_symbolic_links) {
+  writeStringToTestFile("test");
+  
+  const std::string symlinkPath = "/tmp/scribe-test-symlink";
+  fs.createSymlink(testPath, symlinkPath);
+  
+  EXPECT_TRUE(fs.isSymbolicLink(symlinkPath));
+  EXPECT_TRUE(fs.isSymbolicLink(testPath));
+  
+  try {
+    fs.removeFile(symlinkPath);
+  } catch (...) {}
+}

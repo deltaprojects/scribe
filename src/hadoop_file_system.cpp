@@ -66,6 +66,10 @@ void HadoopFileSystem::removeDirectory(const std::string & path) const {
   }
 }
 
+bool HadoopFileSystem::isSymbolicLink(const std::string & path) const {
+  return true;
+}
+
 bool HadoopFileSystem::isDirectory(const std::string& path) const {
   
   hdfsFileInfo * info = hdfsGetPathInfo(fs(path), path.c_str());

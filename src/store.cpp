@@ -449,8 +449,7 @@ std::vector<int> FileStoreBase::findFileSuffices(const std::string & directoryPa
     
     std::vector<int> suffices;
     for (std::vector<std::string>::iterator it = files.begin(); it != files.end(); ++it) {
-      bool fileIsHidden = (*it)[0] == '.';
-      if (!fileIsHidden) {
+      if (!isFilenameSane(*it, fileNameToFind)) {
         suffices.push_back(getFileSuffix(*it, fileNameToFind));
       }
     }
@@ -459,6 +458,10 @@ std::vector<int> FileStoreBase::findFileSuffices(const std::string & directoryPa
   } catch (FileSystemError & e) {
     return std::vector<int>();
   }
+}
+
+bool FileStoreBase::isFilenameSane(const std::string & filename, const std::string & filenameToFind) {
+  return filename.find(filenameToFind) != string::npos;
 }
 
 int FileStoreBase::getFileSuffix(const string& filename,
@@ -578,7 +581,6 @@ void FileStore::configure(pStoreConf configuration) {
 }
 
 bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
-  bool success = false;
   struct tm timeinfo;
 
   if (!current_time) {
@@ -625,53 +627,51 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
       m_fileSystem->createDirectories(directoryPath);
     } catch (FileSystemError & e) {
       LOG_OPER("[%s] Failed to create directory for file <%s>", categoryHandled.c_str(), directoryPath.c_str());
-      setStatus("File open error");
+      setStatus("file open error");
       return false;
     }
     
     try {
       m_outputStream = createConfiguredOutputStream(newFilePath);
-      success = true;
     } catch (FileSystemError & e) {
-      success = false;
+      LOG_OPER("[%s] Failed to create file <%s> of type <%s> for writing",
+                     categoryHandled.c_str(), newFilePath.c_str(), fsType.c_str());
+      setStatus("file open error");
+      return false;
     }
     
-    if (success) {
-      if (createSymlink && !isBufferFile) {
-        std::string symlinkPath = makeFullSymlink(current_time);
-        std::string targetPath = makeFilenameWithSuffix(suffix, current_time);
-        try {
-          m_fileSystem->createSymlink(targetPath, symlinkPath);
-        } catch (FileSystemError & e) {
-          LOG_OPER("[%s] Failed to create symlink from <%s> to <%s>", categoryHandled.c_str(), targetPath.c_str(), symlinkPath.c_str());
-        }
-      }
-      
-      LOG_OPER("[%s] Opened file <%s> for writing", categoryHandled.c_str(), newFilePath.c_str());
-      
+    if (createSymlink && !isBufferFile) {
+      std::string symlinkPath = makeFullSymlink(current_time);
+      std::string targetPath = makeFilenameWithSuffix(suffix, current_time);
       try {
-        currentSize = m_fileSystem->fileSize(newFilePath);
+        if (m_fileSystem->fileExists(symlinkPath) && m_fileSystem->isSymbolicLink(symlinkPath)) {
+          m_fileSystem->removeFile(symlinkPath);
+        }
+        m_fileSystem->createSymlink(targetPath, symlinkPath);
       } catch (FileSystemError & e) {
-        currentSize = 0;
+        LOG_OPER("[%s] Failed to create symlink from <%s> to <%s>", categoryHandled.c_str(), targetPath.c_str(), symlinkPath.c_str());
       }
-      currentFilename = newFilePath;
-      eventsWritten = 0;
-      setStatus("");
-    } else {
-      LOG_OPER("[%s] Failed to open file <%s> for writing", categoryHandled.c_str(), newFilePath.c_str());
-      setStatus("File open error");
     }
+    
+    try {
+      currentSize = m_fileSystem->fileSize(newFilePath);
+    } catch (FileSystemError & e) {
+      currentSize = 0;
+    }
+    currentFilename = newFilePath;
+    eventsWritten = 0;
+    setStatus("");
+    
+    LOG_OPER("[%s] Opened file <%s> for writing", categoryHandled.c_str(), newFilePath.c_str());
     
   } catch(std::exception & e) {
-    LOG_OPER("[%s] Failed to create/open file of type <%s> for writing",
-             categoryHandled.c_str(), fsType.c_str());
-    LOG_OPER("Exception: %s", e.what());
+    LOG_OPER("[%s] Failed to create/open file of type <%s> for writing", categoryHandled.c_str(), fsType.c_str());
     setStatus("file create/open error");
 
     return false;
   }
   
-  return success;
+  return true;
 }
 
 boost::shared_ptr<OutputStream> FileStore::createConfiguredOutputStream(const std::string & filepath) const {
@@ -879,13 +879,14 @@ bool FileStore::readOldest(/*out*/ boost::shared_ptr<logentry_vector_t> messages
       
       if (it == entryString.end()) {
         LOG_OPER("[%s] category not stored with message <%s>", categoryHandled.c_str(), entryString.c_str());
+        entry->message = entryString;
+      } else {
+        std::string category(entryString.begin(), it);
+        std::string message(it + 1, entryString.end());
+      
+        entry->category = category;
+        entry->message = message;
       }
-      
-      std::string category(entryString.begin(), it);
-      std::string message(it + 1, entryString.end());
-      
-      entry->category = category;
-      entry->message = message;
     } else {
       entry->category = categoryHandled;
       entry->message = entryString;
@@ -1085,7 +1086,7 @@ bool ThriftFileStore::openInternal(bool incrementFilename, struct tm* current_ti
   } catch (TException te) {
     LOG_OPER("[%s] Failed to open file <%s> for writing: %s\n",
         categoryHandled.c_str(), filename.c_str(), te.what());
-    setStatus("File open error");
+    setStatus("file open error");
     return false;
   }
 

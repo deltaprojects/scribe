@@ -179,3 +179,15 @@ TEST_F(StandardFileSystemWithFiles, should_return_an_input_stream_for_reading_fr
   
   EXPECT_EQ(contents, input);
 }
+
+TEST_F(StandardFileSystemWithFiles, should_check_to_see_if_a_file_is_a_symlink) {
+  writeStringToTestFile("test");
+  
+  const std::string symlinkPath = "/tmp/scribe-test-symlink";
+  fs.createSymlink(testPath, symlinkPath);
+  
+  EXPECT_TRUE(fs.isSymbolicLink(symlinkPath));
+  EXPECT_FALSE(fs.isSymbolicLink(testPath));
+  
+  fs.removeFile(symlinkPath);
+}
