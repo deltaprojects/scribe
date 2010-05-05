@@ -37,7 +37,7 @@ int main(int argc, char **argv) {
   InitGoogleTest(&argc, argv);
     
   UnitTest& unit_test = *UnitTest::GetInstance();
-
+  
   TestEventListeners& listeners = unit_test.listeners();
   delete listeners.Release(listeners.default_result_printer());
   listeners.Append(new MinimalPrinter);
@@ -53,10 +53,10 @@ int main(int argc, char **argv) {
       if (test_info.result()->Failed()) failures++;
     }
   }
-
+  
   if (unexpectedly_failed_tests == 0)
     ret_val = 0;
-
+  
   printf("\n%d examples, %d failures\n", examples, failures);
   
   return ret_val;

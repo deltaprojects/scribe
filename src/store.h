@@ -32,11 +32,14 @@
 
 #include "common.h" // includes std libs, thrift, and stl typedefs
 #include "conf.h"
-#include "file.h"
 #include "conn_pool.h"
 #include "store_queue.h"
 #include "file_path_policy.h"
+#include "codec.h"
 
+class FileSystem;
+class OutputStream;
+class InputStream;
 class StoreQueue;
 
 /* defines used by the store class */
@@ -46,7 +49,6 @@ enum roll_period_t {
   ROLL_DAILY,
   ROLL_OTHER
 };
-
 
 /*
  * Abstract class to define the interface for a store
@@ -58,7 +60,7 @@ class Store {
   static boost::shared_ptr<Store>
     createStore(StoreQueue* storeq,
                 const std::string& type, const std::string& category,
-                bool readable = false, bool multi_category = false);
+                bool replayable = false, bool multi_category = false);
 
   Store(StoreQueue* storeq, const std::string& category,
         const std::string &type, bool multi_category = false);
@@ -173,6 +175,7 @@ class FileStoreBase : public Store {
   bool createSymlink;
   bool writeStats;
   bool rotateOnReopen;
+  boost::shared_ptr<Codec> m_codec;
 
   // State
   unsigned long currentSize;
@@ -184,6 +187,8 @@ class FileStoreBase : public Store {
                                // written to the currently open file. It is NOT
                                // necessarily the number of lines in the file
 
+  boost::shared_ptr<FileSystem> m_fileSystem;
+  
  private:
   boost::shared_ptr<FilePathPolicy> filePathPolicy;
   
@@ -226,22 +231,22 @@ class FileStore : public FileStoreBase {
  protected:
   // Implement FileStoreBase virtual function
   bool openInternal(bool incrementFilename, struct tm* current_time);
-  bool writeMessages(boost::shared_ptr<logentry_vector_t> messages,
-                     boost::shared_ptr<FileInterface> write_file =
-                     boost::shared_ptr<FileInterface>());
+  bool writeMessages(boost::shared_ptr<logentry_vector_t> messages, boost::shared_ptr<OutputStream> outputStream);
 
   bool isBufferFile;
   bool addNewlines;
 
   // State
-  boost::shared_ptr<FileInterface> writeFile;
+  boost::shared_ptr<OutputStream> m_outputStream;
 
  private:
   // disallow copy, assignment, and empty construction
   FileStore(FileStore& rhs);
   FileStore& operator=(FileStore& rhs);
   
-  const std::string composeMessage(logentry_ptr_t logEntry, boost::shared_ptr<FileInterface> file, unsigned long currentSizeBuffered) const;
+  const std::string composeMessage(logentry_ptr_t logEntry) const;
+  boost::shared_ptr<OutputStream> createConfiguredOutputStream(const std::string & filename) const;
+  boost::shared_ptr<InputStream> createConfiguredInputStream(const std::string & filename) const;
 };
 
 /*
