@@ -63,11 +63,12 @@ FB_WITH_PATH([hadoop_home], [hadooppath], [/usr/local])
 AX_BOOST_BASE([1.36])
 AX_BOOST_SYSTEM
 AX_BOOST_FILESYSTEM
+AX_BOOST_IOSTREAMS
 GTEST_LIB_CHECK([1.4.0])
 
 # Generates Makefile from Makefile.am. Modify when new subdirs are added.
 # Change Makefile.am also to add subdirectly.
-AC_CONFIG_FILES(Makefile src/Makefile lib/py/Makefile test/unit/Makefile)
+AC_CONFIG_FILES(Makefile src/Makefile lib/py/Makefile test/Makefile)
 
 ############################################################################
 # DO NOT TOUCH.

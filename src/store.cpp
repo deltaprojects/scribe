@@ -32,6 +32,13 @@
 #include "scribe_server.h"
 #include "thrift/transport/TSimpleFileTransport.h"
 #include "file_path_policy_factory.h"
+#include "codec_factory.h"
+#include "file_system_factory.h"
+#include "file_system.h"
+#include "output_stream.h"
+#include "input_stream.h"
+#include "framed_input_stream.h"
+#include "framed_output_stream.h"
 #include "hostname.h"
 
 using namespace std;
@@ -69,35 +76,28 @@ const string meta_logfile_prefix = "scribe_meta<new_logfile>: ";
 
 boost::shared_ptr<Store>
 Store::createStore(StoreQueue* storeq, const string& type,
-                   const string& category, bool readable,
+                   const string& category, bool replayable,
                    bool multi_category) {
-  if (0 == type.compare("file")) {
-    return shared_ptr<Store>(new FileStore(storeq, category, multi_category,
-                                          readable));
-  } else if (0 == type.compare("buffer")) {
+  if (type == "file") {
+    return shared_ptr<Store>(new FileStore(storeq, category, multi_category, replayable));
+  } else if (type == "buffer") {
     return shared_ptr<Store>(new BufferStore(storeq,category, multi_category));
-  } else if (0 == type.compare("network")) {
-    return shared_ptr<Store>(new NetworkStore(storeq, category,
-                                              multi_category));
-  } else if (0 == type.compare("bucket")) {
-    return shared_ptr<Store>(new BucketStore(storeq, category,
-                                            multi_category));
-  } else if (0 == type.compare("thriftfile")) {
-    return shared_ptr<Store>(new ThriftFileStore(storeq, category,
-                                                multi_category));
-  } else if (0 == type.compare("null")) {
+  } else if (type == "network") {
+    return shared_ptr<Store>(new NetworkStore(storeq, category, multi_category));
+  } else if (type == "bucket") {
+    return shared_ptr<Store>(new BucketStore(storeq, category, multi_category));
+  } else if (type == "thriftfile") {
+    return shared_ptr<Store>(new ThriftFileStore(storeq, category, multi_category));
+  } else if (type == "null") {
     return shared_ptr<Store>(new NullStore(storeq, category, multi_category));
-  } else if (0 == type.compare("multi")) {
+  } else if (type == "multi") {
     return shared_ptr<Store>(new MultiStore(storeq, category, multi_category));
-  } else if (0 == type.compare("category")) {
-    return shared_ptr<Store>(new CategoryStore(storeq, category,
-                                              multi_category));
-  } else if (0 == type.compare("multifile")) {
-    return shared_ptr<Store>(new MultiFileStore(storeq, category,
-                                                multi_category));
-  } else if (0 == type.compare("thriftmultifile")) {
-    return shared_ptr<Store>(new ThriftMultiFileStore(storeq, category,
-                                                      multi_category));
+  } else if (type == "category") {
+    return shared_ptr<Store>(new CategoryStore(storeq, category, multi_category));
+  } else if (type == "multifile") {
+    return shared_ptr<Store>(new MultiFileStore(storeq, category, multi_category));
+  } else if (type == "thriftmultifile") {
+    return shared_ptr<Store>(new ThriftMultiFileStore(storeq, category, multi_category));
   } else {
     return shared_ptr<Store>();
   }
@@ -254,7 +254,7 @@ void FileStoreBase::configure(pStoreConf configuration) {
   filePathPolicy = FilePathPolicyFactory::createFilePathPolicy(filePath,
                                                                subDirectory,
                                                                rollPeriod != ROLL_NEVER);
-
+  
   if (configuration->getString("write_meta", tmp)) {
     if (0 == tmp.compare("yes")) {
       writeMeta = true;
@@ -283,6 +283,8 @@ void FileStoreBase::configure(pStoreConf configuration) {
   }
 
   configuration->getString("fs_type", fsType);
+  
+  m_fileSystem = FileSystemFactory::createFileSystem(fsType);
 
   configuration->getUnsigned("max_size", maxSize);
   configuration->getUnsigned("max_write_size", maxWriteSize);
@@ -296,6 +298,22 @@ void FileStoreBase::configure(pStoreConf configuration) {
     } else {
       rotateOnReopen = false;
     }
+  }
+  
+  std::string compressionType;
+  unsigned long compressionBufferSize = 10000, compressionLevel = 9;
+  configuration->getString("compression_type", compressionType);
+  configuration->getUnsigned("compression_buffer_size", compressionBufferSize);
+  configuration->getUnsigned("compression_level", compressionLevel);
+
+  if (!compressionType.empty() && !rotateOnReopen) {
+    LOG_OPER("[%s] WARNING: Bad config - rotate_on_reopen must be set to true when compressing files. "
+             "Compression has been disabled",
+             categoryHandled.c_str());
+  } else if (!compressionType.empty()) {
+    m_codec = CodecFactory::createCodec(compressionType, compressionLevel, compressionBufferSize);
+  } else {
+    m_codec = CodecFactory::createCodec("pass", 0, 0);
   }
 }
 
@@ -315,6 +333,8 @@ void FileStoreBase::copyCommon(const FileStoreBase *base) {
   writeStats = base->writeStats;
   rotateOnReopen = base->rotateOnReopen;
   filePathPolicy = base->filePathPolicy;
+  m_codec = base->m_codec;
+  m_fileSystem = base->m_fileSystem;
 }
 
 bool FileStoreBase::open() {
@@ -424,14 +444,21 @@ int FileStoreBase::findOldestFile(const std::string & directoryPath, const std::
 }
 
 std::vector<int> FileStoreBase::findFileSuffices(const std::string & directoryPath, const std::string & fileNameToFind) {
-  std::vector<std::string> files = FileInterface::list(directoryPath, fsType);
-  
-  std::vector<int> suffices;
-  for (std::vector<std::string>::iterator it = files.begin(); it != files.end(); ++it) {
-    suffices.push_back(getFileSuffix(*it, fileNameToFind));
+  try {
+    std::vector<std::string> files = m_fileSystem->listFilenamesInDirectory(directoryPath);
+    
+    std::vector<int> suffices;
+    for (std::vector<std::string>::iterator it = files.begin(); it != files.end(); ++it) {
+      bool fileIsHidden = (*it)[0] == '.';
+      if (!fileIsHidden) {
+        suffices.push_back(getFileSuffix(*it, fileNameToFind));
+      }
+    }
+    
+    return suffices;
+  } catch (FileSystemError & e) {
+    return std::vector<int>();
   }
-  
-  return suffices;
 }
 
 int FileStoreBase::getFileSuffix(const string& filename,
@@ -457,16 +484,15 @@ void FileStoreBase::printStats(struct tm* timestamp) {
   }
 
   string filename = makeDirectoryPath(timestamp) + "/scribe_stats";
-
-  boost::shared_ptr<FileInterface> stats_file =
-      FileInterface::createFileInterface(fsType, filename);
-  if (!stats_file ||
-      !stats_file->createDirectory(makeDirectoryPath(timestamp)) ||
-      !stats_file->openWrite()) {
+  
+  boost::shared_ptr<OutputStream> outputStream;
+  try {
+    m_fileSystem->createDirectories(makeDirectoryPath(timestamp));
+    outputStream = m_fileSystem->openForWriting(filename);
+  } catch (FileSystemError & e) {
     LOG_OPER("[%s] Failed to open stats file <%s> of type <%s> for writing",
              categoryHandled.c_str(), filename.c_str(), fsType.c_str());
-    // This isn't enough of a problem to change our status
-    return;
+   return;
   }
 
   time_t rawtime = time(NULL);
@@ -482,9 +508,8 @@ void FileStoreBase::printStats(struct tm* timestamp) {
 
   msg << " wrote <" << currentSize << "> bytes in <" << eventsWritten
       << "> events to file <" << currentFilename << ">" << endl;
-
-  stats_file->write(msg.str());
-  stats_file->close();
+  
+  *outputStream << msg.str();
 }
 
 // Returns the number of bytes to pad to align to the specified chunk size
@@ -568,13 +593,13 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
     if (incrementFilename) {
       ++suffix;
     }
-
+    
     // this is the case where there's no file there and we're not incrementing
     if (suffix < 0) {
       suffix = 0;
     }
 
-    string file = makeFilepathWithSuffix(suffix, current_time);
+    string newFilePath = makeFilepathWithSuffix(suffix, current_time);
 
     switch (rollPeriod) {
       case ROLL_DAILY:
@@ -589,62 +614,55 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
       case ROLL_NEVER:
         break;
     }
-
-    if (writeFile) {
-      if (writeMeta) {
-        writeFile->write(meta_logfile_prefix + file);
-      }
-      writeFile->close();
-    }
-
-    writeFile = FileInterface::createFileInterface(fsType, file, isBufferFile);
-    if (!writeFile) {
-      LOG_OPER("[%s] Failed to create file <%s> of type <%s> for writing",
-               categoryHandled.c_str(), file.c_str(), fsType.c_str());
-      setStatus("file open error");
-      return false;
+    
+    if (isOpen() && writeMeta) {
+      std::string metadata = meta_logfile_prefix + newFilePath;
+      *m_outputStream << metadata;
     }
     
-    success = writeFile->createDirectory(makeDirectoryPath(current_time));
-    
-    if (!success) {
-      LOG_OPER("[%s] Failed to create directory for file <%s>",
-               categoryHandled.c_str(), file.c_str());
+    std::string directoryPath = makeDirectoryPath(current_time);
+    try {
+      m_fileSystem->createDirectories(directoryPath);
+    } catch (FileSystemError & e) {
+      LOG_OPER("[%s] Failed to create directory for file <%s>", categoryHandled.c_str(), directoryPath.c_str());
       setStatus("File open error");
       return false;
     }
-
-    success = writeFile->openWrite();
-
-
-    if (!success) {
-      LOG_OPER("[%s] Failed to open file <%s> for writing",
-              categoryHandled.c_str(),
-              file.c_str());
-      setStatus("File open error");
-    } else {
-
-      /* just make a best effort here, and don't error if it fails */
+    
+    try {
+      m_outputStream = createConfiguredOutputStream(newFilePath);
+      success = true;
+    } catch (FileSystemError & e) {
+      success = false;
+    }
+    
+    if (success) {
       if (createSymlink && !isBufferFile) {
-        string symlinkName = makeFullSymlink(current_time);
-        boost::shared_ptr<FileInterface> tmp =
-          FileInterface::createFileInterface(fsType, symlinkName, isBufferFile);
-        tmp->deleteFile();
-        string symtarget = makeFilenameWithSuffix(suffix, current_time);
-        writeFile->createSymlink(symtarget, symlinkName);
+        std::string symlinkPath = makeFullSymlink(current_time);
+        std::string targetPath = makeFilenameWithSuffix(suffix, current_time);
+        try {
+          m_fileSystem->createSymlink(targetPath, symlinkPath);
+        } catch (FileSystemError & e) {
+          LOG_OPER("[%s] Failed to create symlink from <%s> to <%s>", categoryHandled.c_str(), targetPath.c_str(), symlinkPath.c_str());
+        }
       }
-      // else it confuses the filename code on reads
-
-      LOG_OPER("[%s] Opened file <%s> for writing", categoryHandled.c_str(),
-              file.c_str());
-
-      currentSize = writeFile->fileSize();
-      currentFilename = file;
+      
+      LOG_OPER("[%s] Opened file <%s> for writing", categoryHandled.c_str(), newFilePath.c_str());
+      
+      try {
+        currentSize = m_fileSystem->fileSize(newFilePath);
+      } catch (FileSystemError & e) {
+        currentSize = 0;
+      }
+      currentFilename = newFilePath;
       eventsWritten = 0;
       setStatus("");
+    } else {
+      LOG_OPER("[%s] Failed to open file <%s> for writing", categoryHandled.c_str(), newFilePath.c_str());
+      setStatus("File open error");
     }
-
-  } catch(std::exception const& e) {
+    
+  } catch(std::exception & e) {
     LOG_OPER("[%s] Failed to create/open file of type <%s> for writing",
              categoryHandled.c_str(), fsType.c_str());
     LOG_OPER("Exception: %s", e.what());
@@ -652,28 +670,44 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
 
     return false;
   }
+  
   return success;
 }
 
+boost::shared_ptr<OutputStream> FileStore::createConfiguredOutputStream(const std::string & filepath) const {
+  boost::shared_ptr<OutputStream> stream = m_fileSystem->openForWriting(filepath);
+  stream = m_codec->wrapOutputStream(stream);
+  if (isBufferFile) {
+    stream.reset(new FramedOutputStream(stream));
+  }
+  return stream;
+}
+
+boost::shared_ptr<InputStream> FileStore::createConfiguredInputStream(const std::string & filepath) const {
+  boost::shared_ptr<InputStream> stream = m_fileSystem->openForReading(filepath);
+  stream = m_codec->wrapInputStream(stream);
+  if (isBufferFile) {
+    stream.reset(new FramedInputStream(stream));
+  }
+  return stream;
+}
+
 bool FileStore::isOpen() {
-  return writeFile && writeFile->isOpen();
+  return m_outputStream.get() != 0;
 }
 
 void FileStore::close() {
-  if (writeFile) {
-    writeFile->close();
-  }
+  m_outputStream.reset();
 }
 
 void FileStore::flush() {
-  if (writeFile) {
-    writeFile->flush();
+  if (isOpen()) {
+    m_outputStream->flush();
   }
 }
 
 shared_ptr<Store> FileStore::copy(const std::string &category) {
-  FileStore *store = new FileStore(storeQueue, category, multiCategory,
-                                   isBufferFile);
+  FileStore *store = new FileStore(storeQueue, category, multiCategory, isBufferFile);
   shared_ptr<Store> copied = shared_ptr<Store>(store);
 
   store->addNewlines = addNewlines;
@@ -688,51 +722,47 @@ bool FileStore::handleMessages(boost::shared_ptr<logentry_vector_t> messages) {
             categoryHandled.c_str());
     return false;
   }
-
+  
   // write messages to current file
-  return writeMessages(messages, writeFile);
+  return writeMessages(messages, m_outputStream);
 }
 
 // writes messages to either the specified file or the the current writeFile
 bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
-                              boost::shared_ptr<FileInterface> file) {
-  // Data is written to a buffer first, then sent to disk in one call to write.
-  // This costs an extra copy of the data, but dramatically improves latency with
-  // network based files. (nfs, etc)
-  std::string writeBuffer;
-  bool          success = true;
-  unsigned long num_buffered = 0;
+                              boost::shared_ptr<OutputStream> outputStream) {
+  bool success = true;
   unsigned long num_written = 0;
-  boost::shared_ptr<FileInterface> currentFile = file;
+  int bytesWrittenSinceLastFlush = 0;
+  boost::shared_ptr<OutputStream> currentOutputStream = outputStream;
   
   try {
     for (logentry_vector_t::iterator iter = messages->begin(); iter != messages->end(); ++iter) {
-      writeBuffer += composeMessage(*iter, currentFile, writeBuffer.length());
-      num_buffered++;
+      int oldBytesWritten = currentOutputStream->bytesWritten();
       
-      // Write buffer if processing last message or if larger than allowed
-      bool isLastMessage = messages->end() == iter + 1;
-      bool exceedsMaxWriteSize = writeBuffer.length() > maxWriteSize && maxWriteSize > 0;
-      bool exceedsCurrentFileSize = currentSize + writeBuffer.length() > maxSize && maxSize > 0;
-      if (isLastMessage || exceedsMaxWriteSize || exceedsCurrentFileSize) {
-        if (!currentFile->write(writeBuffer)) {
-          LOG_OPER("[%s] File store failed to write (%lu) messages to file",
-                   categoryHandled.c_str(), messages->size());
-          setStatus("File write error");
-          success = false;
-          break;
-        }
-
-        num_written += num_buffered;
-        currentSize += writeBuffer.length();
-        num_buffered = 0;
-        writeBuffer = "";
+      std::string message = composeMessage(*iter);
+      *currentOutputStream << message;
+      
+      int newBytesWritten = currentOutputStream->bytesWritten();
+      int bytesWritten = newBytesWritten - oldBytesWritten;
+      
+      bytesWrittenSinceLastFlush += message.length();
+      currentSize += bytesWritten;
+      ++eventsWritten;
+      ++num_written;
+      
+      bool exceedsMaxWriteSize = bytesWrittenSinceLastFlush > maxWriteSize && maxWriteSize > 0;
+      if (exceedsMaxWriteSize) {
+        currentOutputStream->flush();
+        bytesWrittenSinceLastFlush = 0;
       }
-
+      
       // rotate file if large enough and not writing to a separate file
       if (shouldRotate()) {
         rotateFile();
-        currentFile = writeFile;
+        
+        currentOutputStream = m_outputStream;
+        
+        bytesWrittenSinceLastFlush = 0;
       }
     }
   } catch (std::exception const& e) {
@@ -740,9 +770,7 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
              categoryHandled.c_str(), e.what());
     success = false;
   }
-
-  eventsWritten += num_written;
-
+  
   if (!success) {
     close();
 
@@ -755,47 +783,13 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
   return success;
 }
 
-const std::string FileStore::composeMessage(logentry_ptr_t logEntry, boost::shared_ptr<FileInterface> file, unsigned long currentSizeBuffered) const {
+const std::string FileStore::composeMessage(logentry_ptr_t logEntry) const {
   std::string messageBuffer;
   
-  // have to be careful with the length here. getFrame wants the length without
-  // the frame, then bytesToPad wants the length of the frame and the message.
-  unsigned long messageLengthNeededForFrame = logEntry->message.length();
-  unsigned long messageLengthNeededForPadding = logEntry->message.length();
-  std::string frame, category_frame;
-
-  if (addNewlines) {
-    ++messageLengthNeededForFrame;
-    ++messageLengthNeededForPadding;
-  }
-
   if (writeCategory) {
-    //add space for category+newline and category frame
-    unsigned long categoryLength = logEntry->category.length() + 1;
-    messageLengthNeededForPadding += categoryLength;
-
-    category_frame = file->getFrame(categoryLength);
-    messageLengthNeededForPadding += category_frame.length();
-  }
-
-  // frame is a header that the underlying file class can add to each message
-  frame = file->getFrame(messageLengthNeededForFrame);
-
-  messageLengthNeededForPadding += frame.length();
-
-  // padding to align messages on chunk boundaries
-  unsigned long numberOfBytesToPad = bytesToPad(messageLengthNeededForPadding, currentSizeBuffered, chunkSize);
-
-  if (numberOfBytesToPad > 0) {
-    messageBuffer += string(numberOfBytesToPad, 0);
-  }
-
-  if (writeCategory) {
-    messageBuffer += category_frame;
     messageBuffer += logEntry->category + "\n";
   }
 
-  messageBuffer += frame;
   messageBuffer += logEntry->message;
 
   if (addNewlines) {
@@ -808,14 +802,17 @@ const std::string FileStore::composeMessage(logentry_ptr_t logEntry, boost::shar
 // Deletes the oldest file
 // currently gets invoked from within a bufferstore
 void FileStore::deleteOldest(struct tm* now) {
-
   int index = findOldestFile(makeDirectoryPath(now), makeFilename(now));
   if (index < 0) {
     return;
   }
-  shared_ptr<FileInterface> deletefile = FileInterface::createFileInterface(fsType,
-                                            makeFilepathWithSuffix(index, now));
-  deletefile->deleteFile();
+  
+  std::string filepathToRemove = makeFilepathWithSuffix(index, now);
+  try {
+    m_fileSystem->removeFile(filepathToRemove);
+  } catch (FileSystemError & e) {
+    LOG_OPER("[%s] Failed to remove file <%s>", categoryHandled.c_str(), filepathToRemove.c_str());
+  }
 }
 
 // Replace the messages in the oldest file at this timestamp with the input messages
@@ -832,23 +829,19 @@ bool FileStore::replaceOldest(boost::shared_ptr<logentry_vector_t> messages,
 
   // Need to close and reopen store in case we already have this file open
   close();
-
-  shared_ptr<FileInterface> infile = FileInterface::createFileInterface(fsType,
-                                          filename, isBufferFile);
-
-  // overwrite the old contents of the file
+  
   bool success;
-  if (infile->openTruncate()) {
-    success = writeMessages(messages, infile);
-
-  } else {
-    LOG_OPER("[%s] Failed to open file <%s> for writing and truncate",
-             categoryHandled.c_str(), filename.c_str());
+  try {
+    if (m_fileSystem->fileExists(filename)) {
+      m_fileSystem->removeFile(filename);
+    }
+    success = writeMessages(messages, createConfiguredOutputStream(filename));
+  } catch (FileSystemError & e) {
+    LOG_OPER("[%s] Failed to open file <%s> for writing and truncate", categoryHandled.c_str(), filename.c_str());
     success = false;
   }
-
-  // close this file and re-open store
-  infile->close();
+  
+  // Re-open store
   open();
 
   return success;
@@ -858,58 +851,59 @@ bool FileStore::readOldest(/*out*/ boost::shared_ptr<logentry_vector_t> messages
                            struct tm* now) {
 
   int index = findOldestFile(makeDirectoryPath(now), makeFilename(now));
+  
   if (index < 0) {
     // This isn't an error. It's legit to call readOldest when there aren't any
     // files left, in which case the call succeeds but returns messages empty.
     return true;
   }
-  std::string filename = makeFilepathWithSuffix(index, now);
-
-  shared_ptr<FileInterface> infile = FileInterface::createFileInterface(fsType,
-                                              filename, isBufferFile);
-
-  if (!infile->openRead()) {
-    LOG_OPER("[%s] Failed to open file <%s> for reading",
-            categoryHandled.c_str(), filename.c_str());
+  std::string filepath = makeFilepathWithSuffix(index, now);
+  
+  boost::shared_ptr<InputStream> inputStream;
+  try {
+    inputStream = createConfiguredInputStream(filepath);
+  } catch (FileSystemError & e) {
+    LOG_OPER("[%s] Failed to open file <%s> for reading", categoryHandled.c_str(), filepath.c_str());
     return false;
   }
-
-  uint32_t bsize = 0;
-  std::string message;
-  while (infile->readNext(message)) {
-    if (!message.empty()) {
-      logentry_ptr_t entry = logentry_ptr_t(new LogEntry);
-
-      // check whether a category is stored with the message
-      if (writeCategory) {
-        // get category without trailing \n
-        entry->category = message.substr(0, message.length() - 1);
-
-        if (!infile->readNext(message)) {
-          LOG_OPER("[%s] category not stored with message <%s>",
-                   categoryHandled.c_str(), entry->category.c_str());
-        }
-      } else {
-        entry->category = categoryHandled;
+  
+  uint32_t bytesRead = 0;
+  boost::optional<std::string> optionalEntryString;
+  while (optionalEntryString = inputStream->readEntry()) {
+    std::string entryString = *optionalEntryString;
+    logentry_ptr_t entry = logentry_ptr_t(new LogEntry);
+    
+    // check whether a category is stored with the message
+    if (writeCategory) {
+      std::string::iterator it = std::find(entryString.begin(), entryString.end(), '\n');
+      
+      if (it == entryString.end()) {
+        LOG_OPER("[%s] category not stored with message <%s>", categoryHandled.c_str(), entryString.c_str());
       }
-
+      
+      std::string category(entryString.begin(), it);
+      std::string message(it + 1, entryString.end());
+      
+      entry->category = category;
       entry->message = message;
-
-      messages->push_back(entry);
-      bsize += entry->category.size();
-      bsize += entry->message.size();
+    } else {
+      entry->category = categoryHandled;
+      entry->message = entryString;
     }
+
+    messages->push_back(entry);
+    bytesRead += entry->category.size();
+    bytesRead += entry->message.size();
   }
-  infile->close();
 
   LOG_OPER("[%s] successfully read <%lu> entries of <%d> bytes from file <%s>",
-        categoryHandled.c_str(), messages->size(), bsize, filename.c_str());
+        categoryHandled.c_str(), messages->size(), bytesRead, filepath.c_str());
+  
   return true;
 }
 
 bool FileStore::empty(struct tm* now) {
-
-  std::vector<std::string> files = FileInterface::list(makeDirectoryPath(now), fsType);
+  std::vector<std::string> files = m_fileSystem->listFilenamesInDirectory(makeDirectoryPath(now));
 
   std::string base_filename = makeFilename(now);
   for (std::vector<std::string>::iterator iter = files.begin();
@@ -918,9 +912,8 @@ bool FileStore::empty(struct tm* now) {
     int suffix =  getFileSuffix(*iter, base_filename);
     if (-1 != suffix) {
       std::string fullname = makeFilepathWithSuffix(suffix, now);
-      shared_ptr<FileInterface> file = FileInterface::createFileInterface(fsType,
-                                                                      fullname);
-      if (file->fileSize()) {
+
+      if (m_fileSystem->fileSize(fullname) > 0) {
         return false;
       }
     } // else it doesn't match the filename for this store
@@ -1241,6 +1234,7 @@ void BufferStore::configure(pStoreConf configuration) {
       string msg("Bad config - buffer primary store doesn't have a type");
       setStatus(msg);
       cout << msg << endl;
+      exit(1);
     } else if (0 == type.compare("multi")) {
       // Cannot allow multistores in bufferstores as they can partially fail to
       // handle a message.  We cannot retry sending a messages that was

@@ -4,7 +4,7 @@ ACLOCAL_AMFLAGS = -I aclocal
 
 @PRODUCT_MK@
 
-SUBDIRS = . src lib/py test/unit
+SUBDIRS = . src lib/py test
 
 BUILT_SOURCES =
 
