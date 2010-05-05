@@ -31,6 +31,7 @@ class FilePathPolicy {
    virtual const std::string directoryPath(struct tm* time, const std::string & category) const = 0;
    virtual const std::string fullPath(struct tm* time, const std::string & category) const = 0;
    virtual const std::string fileName(struct tm* time, const std::string & category) const = 0;
+   virtual bool supportsReplay() const = 0;
 };
 
 #endif
