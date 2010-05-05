@@ -87,8 +87,8 @@ libscribe_a_SOURCES = gen-cpp/scribe.cpp \
 					  file_path_policy_factory.cpp \
 					  timestamped_file_path_policy.cpp \
 					  hostname.cpp \
-					  bzip2_codec.cpp \
-					  codec_factory.cpp \
+					  bzip2_processor.cpp \
+					  processor_factory.cpp \
 					  standard_file_system.cpp \
 					  hadoop_file_system.cpp \
 					  hadoop_connection.cpp \
@@ -110,8 +110,8 @@ libscribe_so_SOURCES = gen-cpp/scribe.cpp \
 					   file_path_policy_factory.cpp \
 					   timestamped_file_path_policy.cpp \
 					   hostname.cpp \
-					   bzip2_codec.cpp \
-					   codec_factory.cpp \
+					   bzip2_processor.cpp \
+					   processor_factory.cpp \
 					   standard_file_system.cpp \
 					   hadoop_file_system.cpp \
 					   hadoop_connection.cpp \

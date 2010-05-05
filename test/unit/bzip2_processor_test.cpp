@@ -17,18 +17,24 @@
 //
 // @author Johan Stille
 
-#ifndef BZIP2_CODEC_H
-#define BZIP2_CODEC_H
+#include <gtest/gtest.h>
+#include <typeinfo>
+#include <boost/iostreams/filter/bzip2.hpp>
+#include "bzip2_processor.h"
+#include <stdexcept>
 
-#include "codec.h"
+TEST(Bzip2Processor, should_not_throw_an_exception_if_the_compression_level_is_correct) {
+  ASSERT_NO_THROW({
+    Bzip2Processor(1);
+  });
+}
 
-class Bzip2Codec : public Codec {
-  unsigned long m_compressionLevel;
+TEST(Bzip2Processor, should_throw_an_exception_if_the_compression_level_is_invalid) {
+  ASSERT_THROW({
+    Bzip2Processor(0);
+  }, std::invalid_argument);
   
-public:
-  Bzip2Codec(unsigned long compressionLevel);
-  virtual boost::shared_ptr<OutputStream> wrapOutputStream(boost::shared_ptr<OutputStream> outputStream) const;
-  virtual boost::shared_ptr<InputStream> wrapInputStream(boost::shared_ptr<InputStream> inputStream) const;
-};
-
-#endif
+  ASSERT_THROW({
+    Bzip2Processor(10);
+  }, std::invalid_argument);
+}

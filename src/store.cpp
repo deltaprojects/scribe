@@ -32,7 +32,7 @@
 #include "scribe_server.h"
 #include "thrift/transport/TSimpleFileTransport.h"
 #include "file_path_policy_factory.h"
-#include "codec_factory.h"
+#include "processor_factory.h"
 #include "file_system_factory.h"
 #include "file_system.h"
 #include "output_stream.h"
@@ -300,20 +300,20 @@ void FileStoreBase::configure(pStoreConf configuration) {
     }
   }
   
-  std::string compressionType;
-  unsigned long compressionBufferSize = 10000, compressionLevel = 9;
-  configuration->getString("compression_type", compressionType);
-  configuration->getUnsigned("compression_buffer_size", compressionBufferSize);
+  std::string processorType;
+  unsigned long processorBufferSize = 10000, compressionLevel = 9;
+  configuration->getString("processor_type", processorType);
+  configuration->getUnsigned("processor_buffer_size", processorBufferSize);
   configuration->getUnsigned("compression_level", compressionLevel);
 
-  if (!compressionType.empty() && !rotateOnReopen) {
+  if (!processorType.empty() && !rotateOnReopen) {
     LOG_OPER("[%s] WARNING: Bad config - rotate_on_reopen must be set to true when compressing files. "
              "Compression has been disabled",
              categoryHandled.c_str());
-  } else if (!compressionType.empty()) {
-    m_codec = CodecFactory::createCodec(compressionType, compressionLevel, compressionBufferSize);
+  } else if (!processorType.empty()) {
+    m_processor = ProcessorFactory::createProcessor(processorType, compressionLevel, processorBufferSize);
   } else {
-    m_codec = CodecFactory::createCodec("pass", 0, 0);
+    m_processor = ProcessorFactory::createProcessor("pass", 0, 0);
   }
 }
 
@@ -333,7 +333,7 @@ void FileStoreBase::copyCommon(const FileStoreBase *base) {
   writeStats = base->writeStats;
   rotateOnReopen = base->rotateOnReopen;
   filePathPolicy = base->filePathPolicy;
-  m_codec = base->m_codec;
+  m_processor = base->m_processor;
   m_fileSystem = base->m_fileSystem;
 }
 
@@ -685,7 +685,7 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
 
 boost::shared_ptr<OutputStream> FileStore::createConfiguredOutputStream(const std::string & filepath) const {
   boost::shared_ptr<OutputStream> stream = m_fileSystem->openForWriting(filepath);
-  stream = m_codec->wrapOutputStream(stream);
+  stream = m_processor->wrapOutputStream(stream);
   if (isBufferFile) {
     stream.reset(new FramedOutputStream(stream));
   }
@@ -694,7 +694,7 @@ boost::shared_ptr<OutputStream> FileStore::createConfiguredOutputStream(const st
 
 boost::shared_ptr<InputStream> FileStore::createConfiguredInputStream(const std::string & filepath) const {
   boost::shared_ptr<InputStream> stream = m_fileSystem->openForReading(filepath);
-  stream = m_codec->wrapInputStream(stream);
+  stream = m_processor->wrapInputStream(stream);
   if (isBufferFile) {
     stream.reset(new FramedInputStream(stream));
   }

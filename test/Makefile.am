@@ -15,8 +15,8 @@ if HAVE_GTEST
 				  unit/file_path_policy_factory_test.cpp \
 				  unit/static_file_path_policy_test.cpp \
 				  unit/timestamped_file_path_policy_test.cpp \
-				  unit/codec_factory_test.cpp \
-				  unit/bzip2_codec_test.cpp \
+				  unit/processor_factory_test.cpp \
+				  unit/bzip2_processor_test.cpp \
 				  unit/file_system_factory_test.cpp
   
   tests_LDADD = ../src/libscribe.a $(GTEST_LIBS) $(EXTERNAL_LIBS)

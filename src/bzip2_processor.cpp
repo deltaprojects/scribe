@@ -17,24 +17,22 @@
 //
 // @author Johan Stille
 
-#include <gtest/gtest.h>
-#include <typeinfo>
-#include <boost/iostreams/filter/bzip2.hpp>
-#include "bzip2_codec.h"
+#include "bzip2_processor.h"
+#include "bzip2_input_stream.h"
+#include "bzip2_output_stream.h"
 #include <stdexcept>
 
-TEST(Bzip2Codec, should_not_throw_an_exception_if_the_compression_level_is_correct) {
-  ASSERT_NO_THROW({
-    Bzip2Codec(1);
-  });
+Bzip2Processor::Bzip2Processor(unsigned long compressionLevel)
+  : m_compressionLevel(compressionLevel) {
+  if (m_compressionLevel < 1 || m_compressionLevel > 9) {
+    throw std::invalid_argument("bzip2 compression level must be between 1 and 9");
+  }
 }
 
-TEST(Bzip2Codec, should_throw_an_exception_if_the_compression_level_is_invalid) {
-  ASSERT_THROW({
-    Bzip2Codec(0);
-  }, std::invalid_argument);
-  
-  ASSERT_THROW({
-    Bzip2Codec(10);
-  }, std::invalid_argument);
+boost::shared_ptr<OutputStream> Bzip2Processor::wrapOutputStream(boost::shared_ptr<OutputStream> outputStream) const {
+  return boost::shared_ptr<OutputStream>(new Bzip2OutputStream(outputStream, m_compressionLevel));
+}
+
+boost::shared_ptr<InputStream> Bzip2Processor::wrapInputStream(boost::shared_ptr<InputStream> inputStream) const {
+  return boost::shared_ptr<InputStream>(new Bzip2InputStream(inputStream));
 }

@@ -35,7 +35,7 @@
 #include "conn_pool.h"
 #include "store_queue.h"
 #include "file_path_policy.h"
-#include "codec.h"
+#include "processor.h"
 
 class FileSystem;
 class OutputStream;
@@ -176,7 +176,7 @@ class FileStoreBase : public Store {
   bool createSymlink;
   bool writeStats;
   bool rotateOnReopen;
-  boost::shared_ptr<Codec> m_codec;
+  boost::shared_ptr<Processor> m_processor;
 
   // State
   unsigned long currentSize;

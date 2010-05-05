@@ -25,7 +25,7 @@
 class OutputStream;
 class InputStream;
 
-class Codec {
+class Processor {
 public:
   virtual boost::shared_ptr<OutputStream> wrapOutputStream(boost::shared_ptr<OutputStream> outputStream) const = 0;
   virtual boost::shared_ptr<InputStream> wrapInputStream(boost::shared_ptr<InputStream> inputStream) const = 0;
