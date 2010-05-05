@@ -537,6 +537,10 @@ bool FileStoreBase::shouldRotate() const {
   return currentSize > maxSize && maxSize != 0;
 }
 
+bool FileStoreBase::supportsReplay() const {
+  return filePathPolicy->isTimestamped();
+}
+
 FileStore::FileStore(StoreQueue* storeq,
                      const string& category,
                      bool multi_category, bool is_buffer_file)
@@ -574,7 +578,7 @@ void FileStore::configure(pStoreConf configuration) {
       writeCategory = true;
     }
     
-    if (!getFilePathPolicy()->supportsReplay()) {
+    if (!supportsReplay()) {
       LOG_OPER("[%s] ERROR: File path is not configured correctly for replayable store", categoryHandled.c_str());
       exit(1);
     }
@@ -737,7 +741,7 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
                               boost::shared_ptr<OutputStream> outputStream) {
   bool success = true;
   unsigned long num_written = 0;
-  int bytesWrittenSinceLastFlush = 0;
+  unsigned int bytesWrittenSinceLastFlush = 0;
   boost::shared_ptr<OutputStream> currentOutputStream = outputStream;
   
   try {

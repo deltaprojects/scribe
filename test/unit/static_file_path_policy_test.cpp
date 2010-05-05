@@ -43,7 +43,7 @@ TEST_F(StaticFilePathPolicyWithHdfsFiles, should_have_a_full_url_consisting_of_t
   EXPECT_EQ("hdfs://namenode:8020/tmp/category/subdirectory/category", policy.fullPath(now, category));
 }
 
-TEST(StaticFilePathPolicy, should_support_replay) {
+TEST(StaticFilePathPolicy, should_return_that_it_is_not_timestamped) {
   StaticFilePathPolicy policy("/tmp", "subdirectory");
-  EXPECT_TRUE(policy.supportsReplay());
+  EXPECT_TRUE(policy.isTimestamped());
 }

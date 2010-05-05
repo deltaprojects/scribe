@@ -53,6 +53,6 @@ const std::string TimestampedFilePathPolicy::fileName(struct tm* time, const std
   return filename.str();
 }
 
-bool TimestampedFilePathPolicy::supportsReplay() const {
+bool TimestampedFilePathPolicy::isTimestamped() const {
   return false;
 }

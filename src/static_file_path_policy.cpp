@@ -43,6 +43,6 @@ const std::string StaticFilePathPolicy::fileName(struct tm* time, const std::str
   return category;
 }
 
-bool StaticFilePathPolicy::supportsReplay() const {
+bool StaticFilePathPolicy::isTimestamped() const {
   return true;
 }

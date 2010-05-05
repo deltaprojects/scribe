@@ -88,6 +88,6 @@ const std::string DynamicFilePathPolicy::valueForFormatKey(const std::string & a
   return value.str();
 }
 
-bool DynamicFilePathPolicy::supportsReplay() const {
+bool DynamicFilePathPolicy::isTimestamped() const {
   return false;
 }
