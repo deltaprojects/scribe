@@ -58,3 +58,8 @@ TEST(DynamicFilePathPolicyWithHdfsFiles, should_return_a_valid_url) {
   DynamicFilePathPolicy policy("hdfs://namenode:8020/\%category\%/\%year\%/\%month\%/\%day\%.log");
   EXPECT_EQ("hdfs://namenode:8020/my-category/2010/05/10.log", policy.fullPath(&timestamp, "my-category"));
 }
+
+TEST(DynamicFilePathPolicy, should_not_support_replay) {
+  DynamicFilePathPolicy policy("/tmp/\%category\%");
+  EXPECT_FALSE(policy.supportsReplay());
+}

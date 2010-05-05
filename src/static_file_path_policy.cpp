@@ -42,3 +42,7 @@ const std::string StaticFilePathPolicy::fullPath(struct tm* time, const std::str
 const std::string StaticFilePathPolicy::fileName(struct tm* time, const std::string & category) const {
   return category;
 }
+
+bool StaticFilePathPolicy::supportsReplay() const {
+  return true;
+}

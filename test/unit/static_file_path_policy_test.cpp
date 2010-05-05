@@ -42,3 +42,8 @@ TEST_F(StaticFilePathPolicyWithHdfsFiles, should_return_full_url_as_a_directory_
 TEST_F(StaticFilePathPolicyWithHdfsFiles, should_have_a_full_url_consisting_of_the_directory_path_and_the_file_name) {
   EXPECT_EQ("hdfs://namenode:8020/tmp/category/subdirectory/category", policy.fullPath(now, category));
 }
+
+TEST(StaticFilePathPolicy, should_support_replay) {
+  StaticFilePathPolicy policy("/tmp", "subdirectory");
+  EXPECT_TRUE(policy.supportsReplay());
+}

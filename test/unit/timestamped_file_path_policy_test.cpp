@@ -25,3 +25,8 @@ TEST_F(TimestampedFilePathPolicyWithRegularFiles, should_return_a_proper_directo
 TEST_F(TimestampedFilePathPolicyWithRegularFiles, should_have_a_full_path_consisting_of_the_directory_path_and_the_file_name) {
   EXPECT_EQ("/tmp/category/subdirectory/category-2010-05-10", policy.fullPath(&timestamp, category));
 }
+
+TEST(TimestampedFilePathPolicy, should_not_support_replay) {
+  TimestampedFilePathPolicy policy("/tmp", "subdirectory");
+  EXPECT_FALSE(policy.supportsReplay());
+}

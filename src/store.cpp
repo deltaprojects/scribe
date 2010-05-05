@@ -449,7 +449,7 @@ std::vector<int> FileStoreBase::findFileSuffices(const std::string & directoryPa
     
     std::vector<int> suffices;
     for (std::vector<std::string>::iterator it = files.begin(); it != files.end(); ++it) {
-      if (!isFilenameSane(*it, fileNameToFind)) {
+      if (matchesBaseFilename(*it, fileNameToFind)) {
         suffices.push_back(getFileSuffix(*it, fileNameToFind));
       }
     }
@@ -460,7 +460,7 @@ std::vector<int> FileStoreBase::findFileSuffices(const std::string & directoryPa
   }
 }
 
-bool FileStoreBase::isFilenameSane(const std::string & filename, const std::string & filenameToFind) {
+bool FileStoreBase::matchesBaseFilename(const std::string & filename, const std::string & filenameToFind) {
   return filename.find(filenameToFind) != string::npos;
 }
 
@@ -572,6 +572,11 @@ void FileStore::configure(pStoreConf configuration) {
     // Combine all categories in a single file for buffers
     if (multiCategory) {
       writeCategory = true;
+    }
+    
+    if (!getFilePathPolicy()->supportsReplay()) {
+      LOG_OPER("[%s] ERROR: File path is not configured correctly for replayable store", categoryHandled.c_str());
+      exit(1);
     }
   }
 

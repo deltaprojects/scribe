@@ -194,7 +194,7 @@ class FileStoreBase : public Store {
   
   std::string addSuffix(int suffix, const std::string & path);
   std::vector<int> findFileSuffices(const std::string & directoryPath, const std::string & fileNameToFind);
-  bool isFilenameSane(const std::string & filename, const std::string & filenameToFind);
+  bool matchesBaseFilename(const std::string & filename, const std::string & filenameToFind);
    
   // disallow copy, assignment, and empty construction
   FileStoreBase(FileStoreBase& rhs);
