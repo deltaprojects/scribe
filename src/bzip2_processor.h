@@ -17,17 +17,18 @@
 //
 // @author Johan Stille
 
-#include "codec_factory.h"
-#include "bzip2_codec.h"
-#include "pass_through_codec.h"
-#include <stdexcept>
+#ifndef BZIP2_CODEC_H
+#define BZIP2_CODEC_H
 
-boost::shared_ptr<Codec> CodecFactory::createCodec(const std::string & codecType, unsigned long bufferSize, unsigned long compressionLevel) {
-  if (codecType == "bzip2") {
-    return boost::shared_ptr<Codec>(new Bzip2Codec(compressionLevel));
-  } else if (codecType == "pass") {
-      return boost::shared_ptr<Codec>(new PassThroughCodec());
-  } else {
-    throw std::invalid_argument("unknown codec");
-  }
-}
+#include "processor.h"
+
+class Bzip2Processor : public Processor {
+  unsigned long m_compressionLevel;
+  
+public:
+  Bzip2Processor(unsigned long compressionLevel);
+  virtual boost::shared_ptr<OutputStream> wrapOutputStream(boost::shared_ptr<OutputStream> outputStream) const;
+  virtual boost::shared_ptr<InputStream> wrapInputStream(boost::shared_ptr<InputStream> inputStream) const;
+};
+
+#endif

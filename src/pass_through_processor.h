@@ -1,10 +1,10 @@
 #ifndef PASS_THROUGH_CODEC_H
 #define PASS_THROUGH_CODEC_H
 
-#include "codec.h"
+#include "processor.h"
 #include <iostream>
 
-class PassThroughCodec : public Codec {
+class PassThroughProcessor : public Processor {
 public:
   virtual boost::shared_ptr<OutputStream> wrapOutputStream(boost::shared_ptr<OutputStream> outputStream) const {
     return outputStream;

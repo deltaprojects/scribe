@@ -23,11 +23,11 @@
 #include <string>
 #include <boost/shared_ptr.hpp>
 
-class Codec;
+class Processor;
 
-class CodecFactory {
+class ProcessorFactory {
 public:
-  static boost::shared_ptr<Codec> createCodec(const std::string & codecType, unsigned long bufferSize, unsigned long compressionLevel);
+  static boost::shared_ptr<Processor> createProcessor(const std::string & processorType, unsigned long bufferSize, unsigned long compressionLevel);
 };
 
 #endif
