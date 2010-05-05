@@ -45,6 +45,7 @@ if DEBUG
    DEBUG_CPPFLAGS = -DDEBUG_TIMING
 endif
 
+GLOBAL_CXXFLAGS = -Wall -Werror
 
 # Set libraries external to this component.
 EXTERNAL_LIBS = -L$(thrift_home)/lib -L$(fb303_home)/lib -L$(hadoop_home)/lib -lfb303 -lthrift -lthriftnb
@@ -93,6 +94,7 @@ libscribe_a_SOURCES = gen-cpp/scribe.cpp \
 					  hadoop_connection.cpp \
 					  output_stream.cpp \
 					  file_system_factory.cpp
+libscribe_a_CXXFLAGS = $(GLOBAL_CXXFLAGS)
 INTERNAL_LIBS = libscribe.a
 endif
 
@@ -115,7 +117,7 @@ libscribe_so_SOURCES = gen-cpp/scribe.cpp \
 					   hadoop_connection.cpp \
 					   output_stream.cpp \
 					   file_system_factory.cpp
-libscribe_so_CXXFLAGS = $(SHARED_CXXFLAGS)
+libscribe_so_CXXFLAGS = $(SHARED_CXXFLAGS) $(GLOBAL_CXXFLAGS)
 libscribe_so_LDFLAGS = $(SHARED_LDFLAGS)
 INTERNAL_LIBS =  libscribe.so
 endif
@@ -127,6 +129,7 @@ scribed_SOURCES = store.cpp store_queue.cpp conf.cpp conn_pool.cpp scribe_server
 #   scribed_SOURCES += HdfsFile.cpp
 # endif
 scribed_LDADD = $(EXTERNAL_LIBS) $(INTERNAL_LIBS)
+scribed_CXXFLAGS = $(GLOBAL_CXXFLAGS)
 
 if SHARED
 scribed_DEPENDENCIES = libscribe.so

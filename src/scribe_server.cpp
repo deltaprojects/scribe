@@ -325,7 +325,6 @@ bool scribeHandler::throttleRequest(const vector<LogEntry>&  messages) {
   // Also note that we always check all categories, not just the ones in this request.
   // This is a simplification based on the assumption that most Log() calls contain most
   // categories.
-  unsigned long long max_count = 0;
   for (category_map_t::iterator cat_iter = pcategories->begin();
        cat_iter != pcategories->end();
        ++cat_iter) {
