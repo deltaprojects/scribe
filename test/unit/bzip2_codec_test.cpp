@@ -21,5 +21,20 @@
 #include <typeinfo>
 #include <boost/iostreams/filter/bzip2.hpp>
 #include "bzip2_codec.h"
-#include "codec_test_helper.h"
+#include <stdexcept>
 
+TEST(Bzip2Codec, should_not_throw_an_exception_if_the_compression_level_is_correct) {
+  ASSERT_NO_THROW({
+    Bzip2Codec(1);
+  });
+}
+
+TEST(Bzip2Codec, should_throw_an_exception_if_the_compression_level_is_invalid) {
+  ASSERT_THROW({
+    Bzip2Codec(0);
+  }, std::invalid_argument);
+  
+  ASSERT_THROW({
+    Bzip2Codec(10);
+  }, std::invalid_argument);
+}

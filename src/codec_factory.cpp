@@ -24,7 +24,7 @@
 
 boost::shared_ptr<Codec> CodecFactory::createCodec(const std::string & codecType, unsigned long bufferSize, unsigned long compressionLevel) {
   if (codecType == "bzip2") {
-    return boost::shared_ptr<Codec>(new Bzip2Codec());
+    return boost::shared_ptr<Codec>(new Bzip2Codec(compressionLevel));
   } else if (codecType == "pass") {
       return boost::shared_ptr<Codec>(new PassThroughCodec());
   } else {

@@ -20,9 +20,17 @@
 #include "bzip2_codec.h"
 #include "bzip2_input_stream.h"
 #include "bzip2_output_stream.h"
+#include <stdexcept>
+
+Bzip2Codec::Bzip2Codec(unsigned long compressionLevel)
+  : m_compressionLevel(compressionLevel) {
+  if (m_compressionLevel < 1 || m_compressionLevel > 9) {
+    throw std::invalid_argument("bzip2 compression level must be between 1 and 9");
+  }
+}
 
 boost::shared_ptr<OutputStream> Bzip2Codec::wrapOutputStream(boost::shared_ptr<OutputStream> outputStream) const {
-  return boost::shared_ptr<OutputStream>(new Bzip2OutputStream(outputStream));
+  return boost::shared_ptr<OutputStream>(new Bzip2OutputStream(outputStream, m_compressionLevel));
 }
 
 boost::shared_ptr<InputStream> Bzip2Codec::wrapInputStream(boost::shared_ptr<InputStream> inputStream) const {

@@ -23,7 +23,10 @@
 #include "codec.h"
 
 class Bzip2Codec : public Codec {
+  unsigned long m_compressionLevel;
+  
 public:
+  Bzip2Codec(unsigned long compressionLevel);
   virtual boost::shared_ptr<OutputStream> wrapOutputStream(boost::shared_ptr<OutputStream> outputStream) const;
   virtual boost::shared_ptr<InputStream> wrapInputStream(boost::shared_ptr<InputStream> inputStream) const;
 };
