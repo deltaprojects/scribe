@@ -8,6 +8,7 @@ public:
   virtual boost::shared_ptr<OutputStream> openForWriting(const std::string & path) const;
   virtual boost::shared_ptr<InputStream> openForReading(const std::string & path) const;
   virtual bool fileExists(const std::string & path) const;
+  virtual bool isSymbolicLink(const std::string & path) const;
   virtual void removeFile(const std::string & path) const;
   
   virtual void createSymlink(const std::string & sourcePath, const std::string & symlinkPath) const;

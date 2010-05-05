@@ -47,6 +47,10 @@ bool StandardFileSystem::directoryExists(const std::string & path) const {
   return fileExists(path) && boost::filesystem::is_directory(path);
 }
 
+bool StandardFileSystem::isSymbolicLink(const std::string & path) const {
+  return boost::filesystem::symbolic_link_exists(boost::filesystem::path(path));
+}
+
 void StandardFileSystem::removeFile(const std::string & path) const {
   if (fileExists(path)) {
     boost::filesystem::remove(path);
