@@ -19,7 +19,7 @@
 
 #include <gtest/gtest.h>
 #include "processor_factory.h"
-#include "pass_through_processor.h"
+#include "buffering_processor.h"
 #include "bzip2_processor.h"
 #include <stdexcept>
 
@@ -32,11 +32,11 @@ TEST(ProcessorFactory, should_return_a_bzip2_processor) {
   }
 }
 
-TEST(ProcessorFactory, should_return_a_pass_through_processor) {
+TEST(ProcessorFactory, should_return_a_buffering_processor) {
   int bufferSize = 10000;
   int compressionLevel = 9;
-  boost::shared_ptr<Processor> processor = ProcessorFactory::createProcessor("pass", bufferSize, compressionLevel);
-  if (!boost::dynamic_pointer_cast<PassThroughProcessor>(processor)) {
+  boost::shared_ptr<Processor> processor = ProcessorFactory::createProcessor("buffered", bufferSize, compressionLevel);
+  if (!boost::dynamic_pointer_cast<BufferingProcessor>(processor)) {
     FAIL();
   }
 }

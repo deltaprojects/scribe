@@ -240,6 +240,7 @@ class FileStore : public FileStoreBase {
 
   // State
   boost::shared_ptr<OutputStream> m_outputStream;
+  unsigned int m_bytesWrittenSinceLastFlush;
 
  private:
   // disallow copy, assignment, and empty construction

@@ -28,10 +28,6 @@ public:
     m_stream.pop();
   }
   
-  virtual boost::iostreams::filtering_ostream & outputStream() {
-    return m_stream;
-  };
-  
   virtual int bytesWritten() const {
     return m_counter.characters();
   };

@@ -17,8 +17,8 @@
 //
 // @author Johan Stille
 
-#ifndef CODEC_H
-#define CODEC_H
+#ifndef PROCESSOR_H
+#define PROCESSOR_H
 
 #include <boost/shared_ptr.hpp>
 

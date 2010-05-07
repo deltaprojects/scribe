@@ -19,14 +19,14 @@
 
 #include "processor_factory.h"
 #include "bzip2_processor.h"
-#include "pass_through_processor.h"
+#include "buffering_processor.h"
 #include <stdexcept>
 
 boost::shared_ptr<Processor> ProcessorFactory::createProcessor(const std::string & processorType, unsigned long bufferSize, unsigned long compressionLevel) {
   if (processorType == "bzip2") {
     return boost::shared_ptr<Processor>(new Bzip2Processor(compressionLevel));
-  } else if (processorType == "pass") {
-    return boost::shared_ptr<Processor>(new PassThroughProcessor());
+  } else if (processorType == "buffered") {
+    return boost::shared_ptr<Processor>(new BufferingProcessor(bufferSize));
   } else {
     throw std::invalid_argument("unknown processor");
   }
