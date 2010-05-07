@@ -313,7 +313,7 @@ void FileStoreBase::configure(pStoreConf configuration) {
   } else if (!processorType.empty()) {
     m_processor = ProcessorFactory::createProcessor(processorType, compressionLevel, processorBufferSize);
   } else {
-    m_processor = ProcessorFactory::createProcessor("pass", 0, 0);
+    m_processor = ProcessorFactory::createProcessor("buffered", maxWriteSize, 0);
   }
 }
 
@@ -546,7 +546,8 @@ FileStore::FileStore(StoreQueue* storeq,
                      bool multi_category, bool is_buffer_file)
   : FileStoreBase(storeq, category, "file", multi_category),
     isBufferFile(is_buffer_file),
-    addNewlines(false) {
+    addNewlines(false),
+    m_bytesWrittenSinceLastFlush(0) {
 }
 
 FileStore::~FileStore() {
@@ -669,6 +670,7 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
     }
     currentFilename = newFilePath;
     eventsWritten = 0;
+    m_bytesWrittenSinceLastFlush = 0;
     setStatus("");
     
     LOG_OPER("[%s] Opened file <%s> for writing", categoryHandled.c_str(), newFilePath.c_str());
@@ -686,9 +688,9 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
 boost::shared_ptr<OutputStream> FileStore::createConfiguredOutputStream(const std::string & filepath) const {
   boost::shared_ptr<OutputStream> stream = m_fileSystem->openForWriting(filepath);
   stream = m_processor->wrapOutputStream(stream);
-  if (isBufferFile) {
-    stream.reset(new FramedOutputStream(stream));
-  }
+  // if (isBufferFile) {
+  //   stream.reset(new FramedOutputStream(stream));
+  // }
   return stream;
 }
 
@@ -741,7 +743,6 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
                               boost::shared_ptr<OutputStream> outputStream) {
   bool success = true;
   unsigned long num_written = 0;
-  unsigned int bytesWrittenSinceLastFlush = 0;
   boost::shared_ptr<OutputStream> currentOutputStream = outputStream;
   
   try {
@@ -754,24 +755,15 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
       int newBytesWritten = currentOutputStream->bytesWritten();
       int bytesWritten = newBytesWritten - oldBytesWritten;
       
-      bytesWrittenSinceLastFlush += message.length();
+      m_bytesWrittenSinceLastFlush += message.length();
       currentSize += bytesWritten;
       ++eventsWritten;
       ++num_written;
       
-      bool exceedsMaxWriteSize = bytesWrittenSinceLastFlush > maxWriteSize && maxWriteSize > 0;
-      if (exceedsMaxWriteSize) {
-        currentOutputStream->flush();
-        bytesWrittenSinceLastFlush = 0;
-      }
-      
       // rotate file if large enough and not writing to a separate file
       if (shouldRotate()) {
         rotateFile();
-        
         currentOutputStream = m_outputStream;
-        
-        bytesWrittenSinceLastFlush = 0;
       }
     }
   } catch (std::exception const& e) {

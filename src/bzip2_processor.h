@@ -17,8 +17,8 @@
 //
 // @author Johan Stille
 
-#ifndef BZIP2_CODEC_H
-#define BZIP2_CODEC_H
+#ifndef BZIP2_PROCESSOR_H
+#define BZIP2_PROCESSOR_H
 
 #include "processor.h"
 
