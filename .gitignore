@@ -14,3 +14,4 @@ mkinstalldirs
 *.o
 *.a
 .deps
+test/test_config.h

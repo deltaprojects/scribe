@@ -17,14 +17,21 @@
 //
 // @author Johan Stille
 
-#include "timestamp_helper.h"
+#ifndef UNSERIALIZER_H
+#define UNSERIALIZER_H
 
-struct tm TimestampHelper::createTimestamp(int year, int month, int day, int hour, int minute) {
-  struct tm timestamp;
-  timestamp.tm_year = year - 1900;
-  timestamp.tm_mon = month - 1;
-  timestamp.tm_mday = day;
-  timestamp.tm_hour = hour;
-  timestamp.tm_min = minute;
-  return timestamp;
-}
+#define UINT_SIZE 4
+
+class Unserializer {
+public:
+  static unsigned int unserializeUInt(const char * buffer) {
+    unsigned retval = 0;
+    int i;
+    for (i = 0; i < UINT_SIZE; ++i) {
+      retval |= (unsigned char)buffer[i] << (8 * i);
+    }
+    return retval;
+  };
+};
+
+#endif

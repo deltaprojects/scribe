@@ -169,7 +169,6 @@ class FileStoreBase : public Store {
   time_t rollPeriodLength;
   unsigned long rollHour;
   unsigned long rollMinute;
-  std::string fsType;
   unsigned long chunkSize;
   bool writeMeta;
   bool writeCategory;

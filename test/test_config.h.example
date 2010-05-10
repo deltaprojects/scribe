@@ -1,0 +1,10 @@
+#ifndef TEST_CONFIG_H
+#define TEST_CONFIG_H
+
+#ifndef HDFS_TEST_HOST
+#define HDFS_TEST_HOST "hdfs://localhost:8020"
+#endif
+
+#define ENABLE_HDFS_TESTING
+
+#endif
