@@ -21,6 +21,7 @@
 
 #ifdef USE_SCRIBE_HDFS
 
+#include <limits>
 #include "common.h"
 #include "env_default.h"
 #include <stdexcept>
