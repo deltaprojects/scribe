@@ -17,14 +17,23 @@
 //
 // @author Johan Stille
 
-#include "timestamp_helper.h"
+#ifndef SERIALIZER_H
+#define SERIALIZER_H
 
-struct tm TimestampHelper::createTimestamp(int year, int month, int day, int hour, int minute) {
-  struct tm timestamp;
-  timestamp.tm_year = year - 1900;
-  timestamp.tm_mon = month - 1;
-  timestamp.tm_mday = day;
-  timestamp.tm_hour = hour;
-  timestamp.tm_min = minute;
-  return timestamp;
-}
+#include <string>
+
+#define UINT_SIZE 4
+
+class Serializer {
+public:
+  static std::string serializeUInt(unsigned number) {
+    char buffer[UINT_SIZE];
+    int i;
+    for (i = 0; i < UINT_SIZE; ++i) {
+      buffer[i] = (unsigned char)((number >> (8 * i)) & 0xFF);
+    }
+    return std::string(buffer, UINT_SIZE);
+  };
+};
+
+#endif

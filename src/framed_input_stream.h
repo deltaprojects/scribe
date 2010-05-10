@@ -1,25 +1,33 @@
+//  Copyright (c) 2010 Delta Projects AB
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//
+// See accompanying file LICENSE or visit the Scribe site at:
+// http://developers.facebook.com/scribe/
+//
+// @author Johan Stille
+
 #ifndef FRAMED_INPUT_STREAM_H
 #define FRAMED_INPUT_STREAM_H
 
 #include "input_stream.h"
+#include "unserializer.h"
 #include <vector>
-
-#define UINT_SIZE 4
 
 class FramedInputStream : public InputStream {
   boost::iostreams::filtering_istream m_stream;
   boost::shared_ptr<InputStream> m_wrapped;
 
-private:
-  unsigned unserializeUInt(const char * buffer) {
-    unsigned retval = 0;
-    int i;
-    for (i = 0; i < UINT_SIZE; ++i) {
-      retval |= (unsigned char)buffer[i] << (8 * i);
-    }
-    return retval;
-  };
-  
 public:
   FramedInputStream(boost::shared_ptr<InputStream> inputStream)
     : m_wrapped(inputStream) {
@@ -38,7 +46,7 @@ public:
     char bytesToReadBuffer[UINT_SIZE];
     
     if (read(bytesToReadBuffer, UINT_SIZE) == UINT_SIZE) {
-      int bytesToRead = unserializeUInt(bytesToReadBuffer);
+      int bytesToRead = Unserializer::unserializeUInt(bytesToReadBuffer);
       
       std::vector<char> buffer;
       buffer.reserve(bytesToRead);

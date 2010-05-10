@@ -171,7 +171,6 @@ FileStoreBase::FileStoreBase(StoreQueue* storeq,
     rollPeriodLength(0),
     rollHour(DEFAULT_FILESTORE_ROLL_HOUR),
     rollMinute(DEFAULT_FILESTORE_ROLL_MINUTE),
-    fsType("std"),
     chunkSize(0),
     writeMeta(false),
     writeCategory(false),
@@ -282,9 +281,7 @@ void FileStoreBase::configure(pStoreConf configuration) {
     }
   }
 
-  configuration->getString("fs_type", fsType);
-  
-  m_fileSystem = FileSystemFactory::createFileSystem(fsType);
+  m_fileSystem = FileSystemFactory::createFileSystem(filePath);
 
   configuration->getUnsigned("max_size", maxSize);
   configuration->getUnsigned("max_write_size", maxWriteSize);
@@ -325,7 +322,6 @@ void FileStoreBase::copyCommon(const FileStoreBase *base) {
   rollPeriodLength = base->rollPeriodLength;
   rollHour = base->rollHour;
   rollMinute = base->rollMinute;
-  fsType = base->fsType;
   writeMeta = base->writeMeta;
   writeCategory = base->writeCategory;
   createSymlink = base->createSymlink;
@@ -494,7 +490,7 @@ void FileStoreBase::printStats(struct tm* timestamp) {
     outputStream = m_fileSystem->openForWriting(filename);
   } catch (FileSystemError & e) {
     LOG_OPER("[%s] Failed to open stats file <%s> of type <%s> for writing",
-             categoryHandled.c_str(), filename.c_str(), fsType.c_str());
+             categoryHandled.c_str(), filename.c_str(), m_fileSystem->name().c_str());
    return;
   }
 
@@ -645,7 +641,7 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
       m_outputStream = createConfiguredOutputStream(newFilePath);
     } catch (FileSystemError & e) {
       LOG_OPER("[%s] Failed to create file <%s> of type <%s> for writing",
-                     categoryHandled.c_str(), newFilePath.c_str(), fsType.c_str());
+                     categoryHandled.c_str(), newFilePath.c_str(), m_fileSystem->name().c_str());
       setStatus("file open error");
       return false;
     }
@@ -676,7 +672,7 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
     LOG_OPER("[%s] Opened file <%s> for writing", categoryHandled.c_str(), newFilePath.c_str());
     
   } catch(std::exception & e) {
-    LOG_OPER("[%s] Failed to create/open file of type <%s> for writing", categoryHandled.c_str(), fsType.c_str());
+    LOG_OPER("[%s] Failed to create/open file of type <%s> for writing", categoryHandled.c_str(), m_fileSystem->name().c_str());
     setStatus("file create/open error");
 
     return false;
@@ -688,9 +684,9 @@ bool FileStore::openInternal(bool incrementFilename, struct tm* current_time) {
 boost::shared_ptr<OutputStream> FileStore::createConfiguredOutputStream(const std::string & filepath) const {
   boost::shared_ptr<OutputStream> stream = m_fileSystem->openForWriting(filepath);
   stream = m_processor->wrapOutputStream(stream);
-  // if (isBufferFile) {
-  //   stream.reset(new FramedOutputStream(stream));
-  // }
+  if (isBufferFile) {
+    stream.reset(new FramedOutputStream(stream));
+  }
   return stream;
 }
 
@@ -713,7 +709,14 @@ void FileStore::close() {
 
 void FileStore::flush() {
   if (isOpen()) {
+    int oldBytesWritten = m_outputStream->bytesWritten();
+    
     m_outputStream->flush();
+    
+    int newBytesWritten = m_outputStream->bytesWritten();
+    int bytesWritten = newBytesWritten - oldBytesWritten;
+    
+    currentSize += bytesWritten;
   }
 }
 
@@ -757,6 +760,7 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
       
       m_bytesWrittenSinceLastFlush += message.length();
       currentSize += bytesWritten;
+      
       ++eventsWritten;
       ++num_written;
       
@@ -766,7 +770,7 @@ bool FileStore::writeMessages(boost::shared_ptr<logentry_vector_t> messages,
         currentOutputStream = m_outputStream;
       }
     }
-  } catch (std::exception const& e) {
+  } catch (std::exception & e) {
     LOG_OPER("[%s] File store failed to write. Exception: %s",
              categoryHandled.c_str(), e.what());
     success = false;
@@ -795,6 +799,11 @@ const std::string FileStore::composeMessage(logentry_ptr_t logEntry) const {
 
   if (addNewlines) {
     messageBuffer += "\n";
+  }
+  
+  if (chunkSize) {
+    int numberOfZerosToPadWith = (chunkSize - messageBuffer.length()) % chunkSize;
+    messageBuffer += std::string(numberOfZerosToPadWith, 0);
   }
   
   return messageBuffer;

@@ -45,7 +45,7 @@ if DEBUG
    DEBUG_CPPFLAGS = -DDEBUG_TIMING
 endif
 
-GLOBAL_CXXFLAGS = -Wall -Werror
+GLOBAL_CXXFLAGS = -Werror
 
 # Set libraries external to this component.
 EXTERNAL_LIBS = -L$(thrift_home)/lib -L$(fb303_home)/lib -L$(hadoop_home)/lib -lfb303 -lthrift -lthriftnb
@@ -125,9 +125,6 @@ endif
 # Binaries -- multiple progs can be defined.
 bin_PROGRAMS = scribed
 scribed_SOURCES = store.cpp store_queue.cpp conf.cpp conn_pool.cpp scribe_server.cpp $(FB_SOURCES)
-# if USE_SCRIBE_HDFS
-#   scribed_SOURCES += HdfsFile.cpp
-# endif
 scribed_LDADD = $(EXTERNAL_LIBS) $(INTERNAL_LIBS)
 scribed_CXXFLAGS = $(GLOBAL_CXXFLAGS)
 
